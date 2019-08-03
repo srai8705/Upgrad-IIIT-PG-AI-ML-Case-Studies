@@ -1,1 +1,2214 @@
 
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import sklearn
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from sklearn.metrics import r2_score
+from sklearn.feature_selection import RFE, f_regression
+from sklearn.linear_model import (LinearRegression, Ridge, Lasso, RandomizedLasso)
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import RandomForestRegressor
+from bokeh.io import output_notebook
+from bokeh.plotting import ColumnDataSource, figure, show
+
+
+import warnings
+warnings.filterwarnings('ignore')
+
+
+# # Step 1: Data Import
+
+# In[ ]:
+
+
+#importing dataset
+cp=pd.read_csv(r'D:\Learning & Development\IIIT Data Science\ML Course 1\Assignment\CarPrice_Assignment.csv', encoding='utf-8')
+cp.head(5)
+
+
+# ### Exploring data
+
+# In[ ]:
+
+
+#exploring the dataset
+cp.shape #there are 205 records/rows and 26 columns/features
+cp.info() 
+# we have 15 numerical columns and 11 categorical columns
+
+
+# Inference:
+# - There are 205 records and 26 columns
+# - Dataframe has 15 numerical columns and 11 categorical columns
+
+# In[ ]:
+
+
+cp.describe()
+
+
+# Inference:
+# - Above we can see that the 50% of cars price is $10295
+# - Also we can see the cars horspower ranges from 48 to 288
+
+# ## Data Understanding
+
+# ### Independent/Predictor variables
+# - Symboling   -  Assigned insurance risk rating
+#               - A value of +3 indicates that the auto is risky, # -3 that it is probably pretty safe.
+# - Company     - Name of car company 
+# - fueltype    -  Car fuel type i.e gas or diesel 
+# 
+# 
+# - aspiration  -  Aspiration used in a car
+# - http://www.oneshift.com/features/8284/naturally-aspirated-vs-turbocharged-vs-supercharged-vs-twincharged-engines
+# 
+# - doornumber  -  Number of doors in a car 
+# 
+# - carbody     - Body of car
+# - https://www.cartrade.com/blog/2013/auto-guides/different-car-body-types-494.html
+# 
+# 
+# - drivewheel  - type of drive wheel
+# - https://en.wikipedia.org/wiki/Automobile_layout
+# 
+# 
+# 
+# - enginelocation - Location of car engine
+# - wheelbase  - Wheelbase of car 
+# - https://www.carwow.co.uk/guides/glossary/what-is-a-car-wheelbase-0282
+# 
+# - carlength - Length of car 
+# - carwidth  - Width of car 
+# - carheight - height of car
+# - curbweight - The weight of a car without occupants or baggage
+# 
+# 
+# - enginetype - Type of engine
+# - https://www.samarins.com/glossary/dohc.html
+# - https://carbiketech.com/ohc-sohc-dohc/
+# 
+# - cylindernumber - Number of cylinders placed in the car
+# - enginesize - Size of engine
+# - fuelsystem 
+#        -bbl - BBL means the amount of holes that air enters the engine 
+#        -the technical name is BARRELS! When you take off the air filter there 
+#        -will be either 1 hole or 2 holes side by side or 4 holes 
+#        -2 in the front and 2 in the rear. Hence the values 1bbl, 2bbl, 4bbl
+#        -idi - Indirect injection. Fuel is not directly injected into the 
+#        -combustion chamber
+#        -port injection
+#        -spfi - Sequential Port fuel injection
+#        -mpfi - Multipoint/port Fuel Injection
+# 
+# - boreratio & Stroke ratio
+# - https://en.wikipedia.org/wiki/Stroke_ratio
+# 
+# - compressionratio  - Compression ratio is simply the volume of the cylinder
+#   - and the volume of the combustion chamber of the cylinder head when the 
+#   - piston is at Bottom Dead Center (BDC) and the volume of the cylinder head 
+#   - combustion chamber when the piston is at Top Dead Center (TDC)
+#   - http://blog.jpcycles.com/engine-compression-ratios-what-they-are-how-they-work/
+# 
+# - horsepower - 33,000 foot-pounds in one minute
+#   - A horse exerting 1 horsepower can raise 330 pounds of coal 100 feet 
+#   - in a minute, or 33 pounds of coal 1,000 feet in one minute, or 1,000 
+#   - pounds 33 feet in one minute
+#   - https://auto.howstuffworks.com/horsepower.htm
+# 
+# - peakrpm - The power band of an internal combustion engine or electric motor 
+#   - is the range of operating speeds under which the engine or motor is able to
+#   - operate most efficiently. ... Diesel engines in cars and small trucks may 
+#   - develop maximum torque below 2,000 RPM with the power peak below 5,000 RPM.
+#   - https://en.wikipedia.org/wiki/Power_band
+# 
+# - citympg - Mileage in city 
+# - highwaympg - Mileage on highway 
+
+# # Step 2: Data Pre-processing
+
+# In[ ]:
+
+
+cp.columns.values
+
+
+# #### Handling Missing, Duplicate, Redundant and Categorical  Columns
+
+# In[ ]:
+
+
+# Looking for nulls
+print(cp.isnull().any())
+# Inspecting type
+print(cp.dtypes)
+
+
+# Inference:
+# - There are no missing values
+
+# In[ ]:
+
+
+cp['fuelsystem'].value_counts()
+
+
+# In[ ]:
+
+
+# Following columns to be corrected for typos
+
+# enginetype - We dont have dohcv type engine. Looks like a typo this should be updated with dohc
+cp['enginetype']=cp['enginetype'].str.replace('dohcv','dohc')
+
+# fuelsystem - We dont have mfi as fuelsystem. Looks like a typo this should be updated with mpfi
+cp['fuelsystem']=cp['fuelsystem'].str.replace('mfi','mpfi') 
+
+# fuelsystem - We dont have mfi as fuelsystem. Looks like a typo this should be updated with mpfi
+cp['drivewheel']=cp['drivewheel'].str.replace('4wd','fwd') 
+
+
+# In[ ]:
+
+
+# changing the data type of symboling as cat
+cp['symboling']=cp['symboling'].astype('str')
+
+
+# In[ ]:
+
+
+#checking the duplicates in the cp dataframe
+cp[cp.duplicated(keep=False)] # no duplicate values
+
+
+# #### Inference: There are no duplicate
+
+# In[ ]:
+
+
+# removing car_ID as it is irrelevant
+cp.drop('car_ID',axis=1,inplace=True)
+
+
+# ##### As per the busines statement
+# There is a variable named CarName which is comprised of two parts - the first word is the name of 'car company' and the second is the 'car model'. For example, chevrolet impala has 'chevrolet' as the car company name and 'impala' as the car model name. You need to consider only company name as the independent variable for model building.
+# 
+# 
+
+# In[ ]:
+
+
+#extracting the company name fomr the CarName column
+xx=cp['CarName'].str.split(' ',expand=True)
+xx
+#car company name
+cp['carcomp']=xx[0]
+cp['carcomp'].value_counts()
+
+
+# In[ ]:
+
+
+# changing the mis-spelled car company name
+cp['carcomp']=cp['carcomp'].str.replace('vokswagen','volkswagen')
+cp['carcomp']=cp['carcomp'].str.replace('toyouta','toyota')
+cp['carcomp']=cp['carcomp'].str.replace('Nissan','nissan')
+cp['carcomp']=cp['carcomp'].str.replace('porcshce','porsche')
+cp['carcomp']=cp['carcomp'].str.replace('maxda','mazda')
+cp['carcomp']=cp['carcomp'].str.replace('vw','volkswagen')
+cp['carcomp'].value_counts()
+
+
+# In[ ]:
+
+
+# removing CarName as it is irrelevant
+cp.drop('CarName',axis=1,inplace=True)
+
+
+# In[ ]:
+
+
+# creating numerical and categorical attributes
+str_list = [] # empty list to contain columns with strings (words)
+for colname, colvalue in cp.iteritems():
+    if type(colvalue[1]) == str:
+         str_list.append(colname)
+# Get to the numeric columns by inversion            
+num_list = cp.columns.difference(str_list) 
+# Create Dataframe containing only numerical features
+cp_num = cp[num_list]
+cp_cat= cp[str_list]
+
+#print(cp_num.columns)
+
+
+# In[ ]:
+
+
+print(cp_num.columns)
+
+
+# In[ ]:
+
+
+# How does the categorical variables impact price? --- performing annova test
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+ 
+mod = ols('price ~ symboling',
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ aspiration',
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ enginelocation',
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ doornumber', # we can drop door number
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ fueltype', # we can drop door number
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ carbody', # we can drop door number
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ drivewheel', # we can drop door number
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ enginetype', # we can drop door number
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ cylindernumber', # we can drop door number
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ fuelsystem', # we can drop door number
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# In[ ]:
+
+
+mod = ols('price ~ carcomp', # we can drop door number
+                data=cp).fit()
+                
+aov_table = sm.stats.anova_lm(mod, typ=2)
+print (aov_table)
+
+
+# #### The following variables have higher significance i.e P value < 0.05
+# - symboling
+# - car compnay
+# - fuelsystem
+# - cylindernumber
+# - enginetype
+# - drivewheel
+# - aspiration
+# - enginelocation
+
+# #### Graphical Bi-Variate Analysis
+
+# In[ ]:
+
+
+cp.boxplot(column='price',by='carcomp',figsize=(20,20));
+
+
+# In[ ]:
+
+
+#prices v/s features
+from matplotlib import pyplot as plt
+#visualising all the categorical variable using subplots
+plt.figure(figsize=(20,18))
+
+plt.subplot(3,3,1)
+sns.boxplot(x='carbody',y='price',data=cp)
+plt.subplot(3,3,2)
+sns.boxplot(x='enginelocation',y='price',data=cp)
+plt.subplot(3,3,3)
+sns.boxplot(x='enginetype',y='price',data=cp)
+plt.subplot(3,3,4)
+sns.boxplot(x='cylindernumber',y='price',data=cp)
+plt.subplot(3,3,5)
+sns.boxplot(x='fuelsystem',y='price',data=cp)
+plt.subplot(3,3,6)
+sns.boxplot(x='aspiration',y='price',data=cp)
+plt.subplot(3,3,7)
+sns.boxplot(x='drivewheel',y='price',data=cp)
+plt.subplot(3,3,8)
+sns.boxplot(x='symboling',y='price',data=cp)
+
+plt.show()
+
+
+# #### Inference
+# - High price for rear engine location
+# - High price for 8 cylinders
+# - High price for companies-- bmw, buck, jaguar, and porche
+
+# In[ ]:
+
+
+# categorical variable
+print(cp_cat.columns)
+# numerical variables
+print(cp_num.columns)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['wheelbase'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('wheelbase', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'wheelbase'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['stroke'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('stroke', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'stroke'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+# not collinear so we can drop
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['peakrpm'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('peakrpm', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'peakrpm'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+# not collinear so we can drop
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['highwaympg'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('highwaympg', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'highwaympg'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['enginesize'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('enginesize', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'enginesize'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['curbweight'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('curbweight', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'curbweight'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['compressionratio'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('compressionratio', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'compressionratio'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+# not collinear so we can drop
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['citympg'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('citympg', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'citympg'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['carwidth'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('carwidth', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'carwidth'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['carlength'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('carlength', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'carlength'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['carheight'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('carheight', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'carheight'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# In[ ]:
+
+
+# enable notebook output
+output_notebook()
+
+source = ColumnDataSource(data=dict(
+    x=cp['horsepower'],
+    y=cp['price'],
+    make=cp['carcomp'],
+))
+
+tooltips = [
+    ('make', '@make'),
+    ('horsepower', '$x'),
+    ('price', '$y{$0}')
+]
+
+p = figure(plot_width=600, plot_height=400, tooltips=tooltips)
+p.xaxis.axis_label = 'Horsepower'
+p.yaxis.axis_label = 'Price'
+
+# add a square renderer with a size, color, and alpha
+p.circle('x', 'y', source=source, size=8, color='blue', alpha=0.5)
+
+# show the results
+show(p)
+
+
+# ### Creating Dummy Variables
+
+# In[ ]:
+
+
+# creating dummy for enginelocation
+cp['enginelocation'] = cp['enginelocation'].replace('front',1)
+cp['enginelocation'] = cp['enginelocation'].replace('rear',0)
+
+# creating dummy for fueltype
+cp['fueltype'] = cp['fueltype'].replace('gas',1)
+cp['fueltype'] = cp['fueltype'].replace('diesel',0)
+
+# creating dummy for aspiration
+cp['aspiration'] = cp['aspiration'].replace('std',0)
+cp['aspiration'] = cp['aspiration'].replace('turbo',1)
+
+# creating dummy for doornumber
+cp['doornumber'] = cp['doornumber'].replace('two',2)
+cp['doornumber'] = cp['doornumber'].replace('four',4)
+
+# creating dummy for cylindernumber
+cp['cylindernumber'] = cp['cylindernumber'].replace('three',3)
+cp['cylindernumber'] = cp['cylindernumber'].replace('four',4)
+cp['cylindernumber'] = cp['cylindernumber'].replace('five',5)
+cp['cylindernumber'] = cp['cylindernumber'].replace('six',6)
+cp['cylindernumber'] = cp['cylindernumber'].replace('eight',8)
+cp['cylindernumber'] = cp['cylindernumber'].replace('two',2)
+cp['cylindernumber'] = cp['cylindernumber'].replace('twelve',12)
+
+
+# In[ ]:
+
+
+''' Creating dummy for more than 2 categories '''
+col=['carbody','enginetype','drivewheel','fuelsystem', 'carcomp']
+df_dum = pd.get_dummies(cp[col])
+
+
+# In[ ]:
+
+
+df_dum.columns
+
+
+# In[ ]:
+
+
+attr=['carbody_convertible', 'carbody_hardtop', 'carbody_hatchback',
+       'carbody_sedan', 'carbody_wagon', 'enginetype_dohc', 'enginetype_l',
+       'enginetype_ohc', 'enginetype_ohcf', 'enginetype_ohcv',
+       'enginetype_rotor', 'drivewheel_fwd', 'drivewheel_rwd',
+       'fuelsystem_1bbl', 'fuelsystem_2bbl', 'fuelsystem_4bbl',
+       'fuelsystem_idi', 'fuelsystem_mpfi', 'fuelsystem_spdi',
+       'fuelsystem_spfi', 'carcomp_alfa-romero', 'carcomp_audi', 'carcomp_bmw',
+       'carcomp_buick', 'carcomp_chevrolet', 'carcomp_dodge', 'carcomp_honda',
+       'carcomp_isuzu', 'carcomp_jaguar', 'carcomp_mazda', 'carcomp_mercury',
+       'carcomp_mitsubishi', 'carcomp_nissan', 'carcomp_peugeot',
+       'carcomp_plymouth', 'carcomp_porsche', 'carcomp_renault',
+       'carcomp_saab', 'carcomp_subaru', 'carcomp_toyota',
+       'carcomp_volkswagen', 'carcomp_volvo']
+
+
+# In[ ]:
+
+
+df_dum[attr] = df_dum[attr].astype(np.float64)
+# df_dum.dtypes
+
+
+# In[ ]:
+
+
+# joining it with main dataframe
+df=pd.concat([cp,df_dum],axis=1)
+df.drop(['drivewheel','carbody','enginetype','fuelsystem','carcomp'],axis=1,inplace=True)
+df.describe()
+
+
+# In[ ]:
+
+
+''' Checking the outliers for continous variables using Z-score '''
+from scipy.stats import zscore
+#outlier detection in curbweight
+df['z_cp_num']=zscore(df['curbweight'])
+df[(df['z_cp_num']>3.0) | (df['z_cp_num']<-3.0)] #no outliers
+
+
+# ### Outlier Detection
+
+# In[ ]:
+
+
+#outlier detection in horsepower
+df['z_cp_horsepower']=zscore(df['horsepower'])
+df[(df['z_cp_horsepower']>3.0) | (df['z_cp_horsepower']<-3.0)] # there are 2 outliers but they belong to Porsche hence we cannot drop
+
+
+# In[ ]:
+
+
+#outlier detection in boreratio
+df['z_cp_boreratio']=zscore(df['boreratio'])
+df[(df['z_cp_boreratio']>3.0) | (df['z_cp_boreratio']<-3.0)] # there are no outliers
+
+
+# In[ ]:
+
+
+#outlier detection in carlength
+df['z_cp_carlength']=zscore(df['carlength'])
+df[(df['z_cp_carlength']>3.0) | (df['z_cp_carlength']<-3.0)] # there are no outliers
+
+
+# In[ ]:
+
+
+#outlier detection in carwidth
+df['z_cp_carwidth']=zscore(df['carwidth'])
+df[(df['z_cp_carwidth']>3.0) | (df['z_cp_carwidth']<-3.0)] # there are no outliers
+
+
+# In[ ]:
+
+
+df.drop(['z_cp_num', 'z_cp_horsepower', 'z_cp_boreratio', 'z_cp_carlength', 'z_cp_carwidth'],axis=1, inplace=True)
+
+
+# In[ ]:
+
+
+df.columns
+
+
+# # Step 3: Dividing Data into Training and Validation Datasets
+
+# In[ ]:
+
+
+# train-test-split
+df_train, df_test=train_test_split(df,train_size=0.7,random_state=100)
+df_train.info()
+df_test.shape
+
+
+# ### Normalising Data
+
+# In[ ]:
+
+
+#importing required package--from sklearn.preprocessing import MinMaxScaler
+# 1. Create and object or Instantiate an object
+scaler=MinMaxScaler()
+
+#create list of numerica variables only
+num_vars=['wheelbase','carlength','carwidth','price','curbweight','enginesize','boreratio','horsepower','citympg','highwaympg']
+
+#2. Fit and transform the data
+df_train[num_vars]=scaler.fit_transform(df_train[num_vars])
+print(df_train.head())
+
+
+# In[ ]:
+
+
+df_train.describe() #all the variables has maximum value as 1
+
+
+# In[ ]:
+
+
+df_train.columns
+
+
+# In[ ]:
+
+
+# correlation of entired dataframe
+corr_matrix = df_train.corr()
+# features more realted to price
+corr_matrix['price'].sort_values(ascending=False)
+
+
+# In[ ]:
+
+
+# deviding into X and y feature
+# X and y train
+y_train=df_train.pop('price')
+X_train=df_train
+
+
+# In[ ]:
+
+
+X_train.columns
+
+
+# In[ ]:
+
+
+X_train.head(10)
+
+
+# # Feature Selection
+# 
+# RFE
+
+# In[ ]:
+
+
+#running RFE with the output features equal to 10
+lm=LinearRegression()
+#fitting the model
+lm.fit(X_train,y_train)
+
+#passing the fitted model and top n features to RFE
+rfe= RFE(lm,40) #running RFE, it needs two parameters RFE(model, top n features)
+rfe=rfe.fit(X_train, y_train)
+
+
+# In[ ]:
+
+
+list(zip(X_train.columns,rfe.support_,rfe.ranking_))
+
+
+# In[ ]:
+
+
+col=X_train.columns[rfe.support_]
+col
+
+
+# In[ ]:
+
+
+X_train=X_train[col]
+
+
+# # Step 4: Build The Model
+
+# ### Model - 1
+
+# In[ ]:
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# # Multicollinearity checking using VIF
+# - Assumption : If the VIF is above 2, remove the variables as they are statistically insignificant
+# - Removing variables one by one with VIF > 2 and p >0.05
+
+# In[ ]:
+
+
+#ways of dropping variables:
+#significance of variables (p-values)
+#VIF--variance inflation factor
+
+#Computing VIF
+#VIF=1/1-r^2
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# ### Model - 2
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop(['fueltype',],axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 3
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop(['enginetype_rotor'],axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 4
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop(['enginelocation'],axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 5
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('cylindernumber',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 6
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop(['stroke'],axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 7
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carlength',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 8
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('enginesize',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 9
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop(['curbweight'],axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 11
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop(['carwidth'],axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 12
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('enginetype_ohc',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 13
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('highwaympg',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model -14
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('wheelbase',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model 15
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('horsepower',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model 16
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('boreratio',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model 17
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('enginetype_ohcf',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model 18
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carcomp_peugeot',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 19
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('fuelsystem_1bbl',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 20
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('fuelsystem_mpfi',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 21
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carbody_convertible',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 22
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('fuelsystem_4bbl',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 23
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carbody_hatchback',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 24
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('fuelsystem_idi',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 25
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carcomp_chevrolet',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 26
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carcomp_plymouth',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 27
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carcomp_dodge',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 28
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carcomp_subaru',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model - 29
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carcomp_mitsubishi',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# # Model -30
+
+# In[ ]:
+
+
+# dropping engine rotors 
+X_train=X_train.drop('carcomp_saab',axis=1)
+
+
+#building the model with all the significant features found above and the dropping basis the significane
+X_train_sm=sm.add_constant(X_train)
+
+#create the second model
+lrr=sm.OLS(y_train,X_train_sm)
+
+#fit the model
+lrr_model=lrr.fit()
+
+#params
+lrr_model.params
+
+#getting the summary stats
+lrr_model.summary()
+
+
+# In[ ]:
+
+
+#create a dataframe which will contain all the features and their respective VIF values
+vif=pd.DataFrame()
+vif['Features']=X_train.columns
+vif['VIF']=[variance_inflation_factor(X_train.values,i) for i in range(X_train.shape[1])]
+vif['VIF']=round(vif['VIF'],2)
+vif=vif.sort_values(by='VIF', ascending=False)
+vif
+
+
+# In[ ]:
+
+
+X_train_sm.columns
+
+
+# # Step 4: Residual Analysis and Prediction
+
+# In[ ]:
+
+
+#computing the predicted values of the training set
+y_train_pred=lrr_model.predict(X_train_sm)
+
+
+# In[ ]:
+
+
+res=y_train-y_train_pred
+#plotting the ditribution of the error term
+# we can see it is almost normal
+sns.distplot(res);
+
+
+# In[ ]:
+
+
+df_test.columns
+
+
+# # Prediction and Evaluation on Test Set
+
+# In[ ]:
+
+
+# creating numerical and categorical attributes
+#we need to perform the transformation on the test sets as well
+#ways to use the most sklearn classes
+
+#create list of only numerica variables
+num_vars=['wheelbase','carlength','carwidth','price','curbweight','enginesize','boreratio','horsepower','citympg','highwaympg']
+
+
+# 2. Fit on the data
+df_test[num_vars]=scaler.transform(df_test[num_vars])
+df_test.head()
+
+
+# In[ ]:
+
+
+df_test.describe()
+
+#here max values of all the variables is not 1
+#this is happening cz minmaxscaler is using the min and max from training set
+
+
+# In[ ]:
+
+
+#now making the predictions
+y_test=df_test.pop('price')
+X_test=df_test
+
+
+# In[ ]:
+
+
+X_test=X_test[['aspiration', 'enginetype_dohc', 'enginetype_l',
+       'enginetype_ohcv', 'fuelsystem_2bbl', 'carcomp_audi', 'carcomp_bmw',
+       'carcomp_buick', 'carcomp_honda', 'carcomp_jaguar', 'carcomp_porsche',
+       'carcomp_volvo']]
+
+
+# In[ ]:
+
+
+#add a constant to make prediction on X_test
+X_test_sm=sm.add_constant(X_test)
+X_test_sm.shape
+
+
+# In[ ]:
+
+
+#predicting y_test
+y_test_pred=lrr_model.predict(X_test_sm)
+
+
+# In[ ]:
+
+
+res=y_test-y_test_pred
+sns.distplot(res)
+
+
+# In[ ]:
+
+
+# evaluate the model---compute R^2
+r2_score(y_true=y_test, y_pred=y_test_pred)
+
+#what model learned on training set it is able to generalise on test test
+
+
+# As per the final model, we can say that the car prices in American market are dependent on aspiration, enginetype-dohc,l,ohcv and fueltype 2bbl if the cars is of company of audi, bmw, buick , honda ,jaguar , porsche  and volvo. 
+
